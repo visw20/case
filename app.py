@@ -21,11 +21,11 @@ import numpy as np
 warnings.simplefilter(action='ignore', category=UserWarning)
 
 #nltk.download('punkt')
-nltk.download('wordnet')
-nltk.download('stopwords')
-nltk.download('averaged_perceptron_tagger')
-nltk.download('maxent_ne_chunker')
-nltk.download('words')
+#nltk.download('wordnet')
+#nltk.download('stopwords')
+#nltk.download('averaged_perceptron_tagger')
+#nltk.download('maxent_ne_chunker')
+#nltk.download('words')
 
 # Load the English language model
 nlp = spacy.load('en_core_web_sm')
