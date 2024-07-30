@@ -20,7 +20,7 @@ import numpy as np
 
 warnings.simplefilter(action='ignore', category=UserWarning)
 
-nltk.download('punkt')
+#nltk.download('punkt')
 nltk.download('wordnet')
 nltk.download('stopwords')
 nltk.download('averaged_perceptron_tagger')
