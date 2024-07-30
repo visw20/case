@@ -26,8 +26,13 @@ nltk.download('averaged_perceptron_tagger')
 nltk.download('maxent_ne_chunker')
 nltk.download('words')
 
-# Load the English language model
-nlp = spacy.load('en_core_web_sm')
+# Load spaCy model
+try:
+    nlp = spacy.load('en_core_web_sm')
+except OSError:
+    from spacy.cli import download
+    download('en_core_web_sm')
+    nlp = spacy.load('en_core_web_sm')
 
 # Set max_length to a value that accommodates your text length
 nlp.max_length = 5000000  # Set max_length to a value that accommodates your text length
