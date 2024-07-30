@@ -8,4 +8,3 @@ emoji
 regex
 gensim
 pymupdf
-numpy
