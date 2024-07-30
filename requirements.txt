@@ -7,4 +7,3 @@ emoji
 regex
 gensim
 pymupdf
-spacy
