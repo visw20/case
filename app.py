@@ -1,13 +1,3 @@
-
-
-
-
-
-
-
-
-
-
 import streamlit as st
 import re
 import nltk
@@ -215,8 +205,8 @@ def generate_response(user_input, text, sent_tokens, preprocessed_sent_tokens, w
         return "I'm sorry, I don't know."
     
 def extract_case_number(text):
-    # Regular expression pattern for matching case numbers
-    pattern = r'\b(?:[A-Z]{1,2}\s*\(\s*[A-Za-z]*\s*\)\s*)?\d{1,}\s*(?:of|OF)\s*\d{4}\b'
+    # Regular expression pattern for matching case numbers, including ranges
+    pattern = r'\b(?:[A-Z]{1,2}\s*\(\s*[A-Za-z]*\s*\)\s*)?(?<!\d\/)\b\d{2,}(?:-\d{2,})?(?:\s*(?:and|,)\s*\d{2,})*(?:\s*(?:of|OF)\s*|\s*\/\s*)\d{4}\b(?!\/\d{2})\b'
     
     # Find all matches of the pattern in the text
     case_numbers = re.findall(pattern, text)
@@ -265,7 +255,7 @@ def extract_final_verdict(text):
         r'conclusion[:\s]*([^\n.]*\d{4}-\d{2}-\d{2})(?:\.|\n)',
         r'decision[:\s]*([^\n.]*\d{4}-\d{2}-\d{2})(?:\.|\n)',
         r'order[:\s]*([^\n.]*\d{4}-\d{2}-\d{2})(?:\.|\n)',
-        r'DATED[:\s]*\d{2}\.\d{2}\.\d{4}',  # Pattern for DATED: dd.mm.yyyy
+        #r'DATED[:\s]*\d{2}\.\d{2}\.\d{4}',  # Pattern for DATED: dd.mm.yyyy
     ]
     
     # Search for the patterns in the text
@@ -276,145 +266,57 @@ def extract_final_verdict(text):
             final_verdict = match.group(0).strip()
             break
     
+    if not final_verdict:
+        # If no final verdict date is found, try to find a date in the title of the case
+        title_pattern = r'((?:In\sRe:\s)?[A-Z][a-zA-Z\s.,&()\'’\-/]+(?:\s+Through\s+[A-Za-z\s.,&()\'’\-/]+)?(?:\s+\.\.\.\s+)?(?:vs\.?\s+[A-Z][a-zA-Z\s.,&()\'’\-/]+(?:\s*[:,]\s*[a-zA-Z\s.,&()\'’]*)*)?)\s+on\s+(\d{1,2}\s+[A-Za-z]+,?\s+\d{4})'
+        title_match = re.search(title_pattern, text, re.IGNORECASE)
+        if title_match:
+            final_verdict = title_match.group(2).strip()
+    
     return final_verdict
 
-def extract_parties(text):
+def extract_parties(text):        
     # New patterns for petitioner and respondents
     new_petitioner_pattern = re.compile(r'([^\n\r]+?)\s*\.\.\.\s*Petitioner', re.IGNORECASE | re.DOTALL)
     new_respondents_pattern = re.compile(r'Vs\.\s*(.*)\s*\.\.\.\s*Respondents', re.IGNORECASE | re.DOTALL)
-    
-    # New patterns provided
-    new_pattern = re.compile(r'([^\n\r]+?)\s*\.\.\s*Petitioner\s*-vs-\s*([^\n\r]+?)\s*\.\.\s*Respondents', re.IGNORECASE | re.DOTALL)
-    new_pattern_2 = re.compile(r'([^\n\r]+?)\s*\.\.\s*Petitioner\s*-versus-\s*([^\n\r]+?)\s*\.\.\s*Respondents', re.IGNORECASE | re.DOTALL)
-    new_pattern_3 = re.compile(r'([^\n\r]+?)\s*\.\.\.\s*Petitioner\s*\n*Vs\.\n*([^\n\r]+?)\s*\.\.\.\s*Respondents', re.IGNORECASE | re.DOTALL)
-    new_pattern_4 = re.compile(r'([^\n\r]+?)\s*\.{4}PETITIONER\s*V/S\s*([^\n\r]+?)\s*\.{4}RESPONDENT', re.IGNORECASE | re.DOTALL)
-    
-    # Additional new pattern to be added
-    additional_new_pattern = re.compile(r'([^\n\r]+)\s*\.\.\s*Petitioner\s*Vs\s*(.*?)\s*\.\.\s*Respondents', re.IGNORECASE | re.DOTALL)
-    
-    # New pattern to add (provided by user)
-    new_pattern_5 = re.compile(
-        r'([^\n\r]+?)\s*\.{3,}\s*PETITIONER\s*(?:\n*AND\n*|\s+AND\s+)([^\n\r]+?)\s*\.{3,}\s*RESPONDENT',
-        re.IGNORECASE | re.DOTALL
-    )
-    # Existing patterns
-    petitioner_pattern = re.compile(r'PETITIONER:\s*(.*?)\s*(?=Vs\.|RESPONDENT:)', re.IGNORECASE | re.DOTALL)
-    respondent_pattern = re.compile(r'RESPONDENT:\s*(.*?)$', re.IGNORECASE | re.DOTALL | re.MULTILINE)
-    pattern_ellipsis = re.compile(r'([^\n\r]+?)\s*…\s*Petitioner\s*.*?Versus\s*([^\n\r]+?)\s*…\s*Respondents', re.IGNORECASE | re.DOTALL)
-    pattern_dots = re.compile(r'([^\n\r]+?)\s*\.{4}\s*Petitioner\s*\(s\)\s*.*?Versus\s*([^\n\r]+?)\s*\.{4}\s*Respondent\s*\(s\)', re.IGNORECASE | re.DOTALL)
-    pattern_provided = re.compile(r'([^\n\r]+?)\s*…\s*.*?Versus:\s*([^\n\r]+?)\s*…\s*.*?RESPONDENT\(S\)', re.IGNORECASE | re.DOTALL)
-    pattern_appellant = re.compile(r'([^\n\r]+?)\s*…\s*APPELLANT\(S\)\s*.*?Versus:\s*([^\n\r]+?)\s*…\s*RESPONDENT\(S\)', re.IGNORECASE | re.DOTALL)
-    pattern_specific_parties = re.compile(r'([^\n\r]+?)\s*Versus\s*([^\n\r]+)', re.IGNORECASE | re.DOTALL)
 
-    # Try matching the specific pattern first
-    specific_pattern = re.compile(r'([^\n\r]+?)\s*\.\.\.\s*Petitioner\s*-vs-\s*(.*?)\s*\.\.\.\s*Respondents', re.IGNORECASE | re.DOTALL)
-    match = specific_pattern.search(text)
-    if match:
-        petitioner = match.group(1).strip()
-        respondents_text = match.group(2).strip()
-        respondents = respondents_text.split('\n')
-        respondents = [resp.strip() for resp in respondents if resp.strip()]
-        respondents = "\n".join([f"{resp}" for resp in respondents])
-        return f"Petitioner: {petitioner}\nRespondents:\n{respondents}"
-     
-    # Try matching the new pattern 6
-    new_pattern_6 = re.compile(
-        r'([^\n\r]+?)\s*\.{3,}\s*PETITIONER(?:/ACCUSED|/COMPLAINANT)?'
-        r'\s*(?:\n*AND\n*|\s+AND\s+)'
-        r'([^\n\r]+?)\s*\.{3,}\s*RESPONDENT(?:/ACCUSED|/COMPLAINANT)?',
-        re.IGNORECASE | re.DOTALL
-    )
-    match = new_pattern_6.search(text)
-    if match:
-        petitioner = match.group(1).strip()
-        respondent = match.group(2).strip()
-        return f"Petitioner: {petitioner}\nRespondent: {respondent}"
-    
-    # Try matching the new pattern next
-    match = new_pattern.search(text)
-    if match:
-        petitioner = match.group(1).strip()
-        respondents_text = match.group(2).strip()
-        respondents = respondents_text.split('and')
-        respondents = [resp.strip() for resp in respondents]
-        return {
-            'petitioner': petitioner,
-            'respondents': respondents
-        }
- 
-    # Try matching the new pattern next
+    petitioner_matches = new_petitioner_pattern.findall(text)
+    respondents_matches = new_respondents_pattern.findall(text)
+
+    if petitioner_matches and respondents_matches:
+        petitioners = [match.strip() for match in petitioner_matches]
+        respondents = []
+        for match in respondents_matches:
+            respondents_list = match.strip().split('\n')
+            respondents.extend([resp.strip() for resp in respondents_list if resp.strip()])
+        petitioners = "\n".join([f"{petitioner}" for petitioner in petitioners])
+        respondents = "\n".join([f"{respondent}" for respondent in respondents])
+        return f"Petitioners:\n{petitioners}\n\nRespondents:\n{respondents}"
+
+       
     new_pattern_7 = re.compile(
         r'([^\n\r]+?)\s*\.{3,}\s*PETITIONER(?:/ACCUSED\(S\))?'
         r'\s*(?:\n*AND\n*|\s+AND\s+)'
         r'([^\n\r]+?)\s*\.{3,}\s*RESPONDENT(?:/COMPLAINANT)?',
         re.IGNORECASE | re.DOTALL
     )
-    match = new_pattern_7.search(text)
-    if match:
-        petitioner = match.group(1).strip()
-        respondent = match.group(2).strip()
-        return f"Petitioner: {petitioner}\nRespondent: {respondent}"
+
+    matches = new_pattern_7.findall(text)
+    if matches:
+        petitioners = []
+        respondents = []
+        for match in matches:
+            petitioners.append(match[0].strip())
+            respondents.append(match[1].strip())
+        
+        petitioners_text = "\n".join(petitioners)
+        respondents_text = "\n".join(respondents)
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
     
-    # Try matching the new pattern 2
-    match = new_pattern_2.search(text)
-    if match:
-        petitioner = match.group(1).strip()
-        respondents_text = match.group(2).strip()
-        respondents = respondents_text.split('and')
-        respondents = [resp.strip() for resp in respondents]
-        return {
-            'petitioner': petitioner,
-            'respondents': respondents
-        }
-
-    # Try matching the new pattern 3
-    match = new_pattern_3.search(text)
-    if match:
-        petitioner = match.group(1).strip()
-        respondents_text = match.group(2).strip()
-        respondents = respondents_text.split('\n')
-        respondents = [resp.strip() for resp in respondents if resp.strip()]
-        respondents = "\n".join([f"{resp}" for resp in respondents])
-        return f"Petitioner: {petitioner}\nRespondents:\n{respondents}"
+        
+    petitioner_pattern = re.compile(r'PETITIONER:\s*(.*?)\s*(?=Vs\.|RESPONDENT:)', re.IGNORECASE | re.DOTALL)
+    respondent_pattern = re.compile(r'RESPONDENT:\s*(.*?)\s*(?=$|\n)', re.IGNORECASE | re.DOTALL | re.MULTILINE)
     
-    # Try matching the new pattern 4
-    match = new_pattern_4.search(text)
-    if match:
-        petitioner = match.group(1).strip()
-        respondent = match.group(2).strip()
-        return f"Petitioner: {petitioner}\nRespondent: {respondent}"
-
-    # Try matching the additional new pattern
-    match = additional_new_pattern.search(text)
-    if match:
-        petitioner = match.group(1).strip()
-        respondents_text = match.group(2).strip()
-        respondents = [resp.strip() for resp in respondents_text.split('\n') if resp.strip()]
-        return {
-            'petitioner': petitioner,
-            'respondents': respondents
-        }
-    
-    # Try matching the new pattern 5 (provided by user)
-    match = new_pattern_5.search(text)
-    if match:
-        petitioner = match.group(1).strip()
-        respondent = match.group(2).strip()
-        return f"Petitioner: {petitioner}\nRespondent: {respondent}"
-
-    # Try matching the new petitioner and respondents pattern
-    petitioner_match = new_petitioner_pattern.search(text)
-    respondents_match = new_respondents_pattern.search(text)
-
-    if petitioner_match and respondents_match:
-        petitioner = petitioner_match.group(1).strip()
-        respondents_text = respondents_match.group(1).strip()
-        respondents_list = respondents_text.split('\n')
-        respondents = [resp.strip() for resp in respondents_list if resp.strip()]
-        respondents = "\n".join([f"{resp}" for resp in respondents])
-        return f"Petitioner: {petitioner}\nRespondents:\n{respondents}"
-
-    # Try matching the standard pattern
     petitioners = petitioner_pattern.findall(text)
     respondents = respondent_pattern.findall(text)
     
@@ -423,101 +325,832 @@ def extract_parties(text):
         respondents = [r.strip() for r in respondents]
         parties = []
         for petitioner, respondent in zip(petitioners, respondents):
-            parties.append(f"Petitioner: {petitioner}\nRespondent: {respondent}")
+            parties.append(f"Petitioner: {petitioner}\n\nRespondent: {respondent}")
         return "\n\n".join(parties)
     
-    # Try matching the ellipses pattern
-    matches = pattern_ellipsis.findall(text)
+    
+    
+    new_pattern_6 = re.compile(
+        r'([^\n\r]+?)\s*\.{3,}\s*PETITIONER(?:/ACCUSED|/COMPLAINANT)?'
+        r'\s*(?:\n*AND\n*|\s+AND\s+)'
+        r'([^\n\r]+?)\s*\.{3,}\s*RESPONDENT(?:/ACCUSED|/COMPLAINANT)?',
+        re.IGNORECASE | re.DOTALL
+    )
+
+    matches = new_pattern_6.findall(text)
+    if matches:
+        petitioners = []
+        respondents = []
+        for match in matches:
+            petitioners.append(match[0].strip())
+            respondents.append(match[1].strip())
+        
+        petitioners_text = "\n".join(petitioners)
+        respondents_text = "\n".join(respondents)
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+     
+    
+    new_pattern_2_revised = re.compile(
+        r'([^\n\r]+?)\s*\.\.\.\s*(?:Appellants|Petitioners|Complainants|Plaintiffs)\s*.*?\n\s*[-versus-]+\n\s*([^\n\r]+?)\s*\.\.\.\s*(?:Respondent|Defendant|Accused|Appellees)',
+        re.IGNORECASE | re.DOTALL
+    )
+
+    matches = new_pattern_2_revised.findall(text)
+    if matches:
+        petitioners = []
+        respondents = []
+        for match in matches:
+            petitioners.append(match[0].strip())
+            respondents.append(match[1].strip())
+        
+        petitioners_text = "\n".join(petitioners)
+        respondents_text = "\n".join(respondents)
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+    
+    specific_pattern = re.compile(
+        r'([^\n\r]+?)\s*\.\.\.\s*Petitioner\s*-vs-\s*(.*?)\s*\.\.\.\s*Respondents', 
+        re.IGNORECASE | re.DOTALL
+    )
+
+    matches = specific_pattern.findall(text)
+    if matches:
+        petitioners = []
+        respondents = []
+        for match in matches:
+            petitioners.append(match[0].strip())
+            respondents_text = match[1].strip()
+            respondents_list = respondents_text.split('\n')
+            respondents.extend([resp.strip() for resp in respondents_list if resp.strip()])
+        
+        petitioners_text = "\n".join(petitioners)
+        respondents_text = "\n".join(respondents)
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+    
+    new_pattern = re.compile(
+    r'([^\n\r]+?)\s*\.\.\s*Petitioner\s*-vs-\s*([^\n\r]+?)\s*\.\.\s*Respondents', 
+    re.IGNORECASE | re.DOTALL
+    )
+    
+    # Find all matches in the text
+    matches = new_pattern.findall(text)
+    if matches:
+        petitioners = []
+        respondents_list = []
+        
+        for match in matches:
+            petitioner = match[0].strip()
+            respondents = match[1].strip().split('\n')
+            respondents = [resp.strip() for resp in respondents if resp.strip()]
+            respondents_text = "\n".join(respondents)
+            
+            petitioners.append(petitioner)
+            respondents_list.append(respondents_text)
+        
+        petitioners_text = "\n".join(petitioners)
+        respondents_text = "\n\n".join(respondents_list)
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+   
+    new_pattern_2 = re.compile(
+        r'([^\n\r]+?)\s*\.\.\s*Petitioner\s*-versus-\s*([^\n\r]+?)\s*\.\.\s*Respondents', 
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    # Find all matches in the text
+    matches = new_pattern_2.findall(text)
+    if matches:
+        petitioners = []
+        respondents_list = []
+        
+        for match in matches:
+            petitioner = match[0].strip()
+            respondents = match[1].strip().split('\n')
+            respondents = [resp.strip() for resp in respondents if resp.strip()]
+            respondents_text = "\n".join(respondents)
+            
+            petitioners.append(petitioner)
+            respondents_list.append(respondents_text)
+        
+        petitioners_text = "\n".join(petitioners)
+        respondents_text = "\n\n".join(respondents_list)
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+    
+    new_pattern_3 = re.compile(
+        r'([^\n\r]+?)\s*\.\.\.\s*Petitioner\s*\n*Vs\.\n*([^\n\r]+?)\s*\.\.\.\s*Respondents', 
+        re.IGNORECASE | re.DOTALL
+    )
+
+    matches = new_pattern_3.findall(text)
+    if matches:
+        petitioners = []
+        respondents = []
+        for match in matches:
+            petitioner = match[0].strip()
+            respondents_text = match[1].strip()
+            respondents_list = respondents_text.split('\n')
+            respondents.append("\n".join([resp.strip() for resp in respondents_list if resp.strip()]))
+        
+        petitioners_text = "\n".join(petitioners)
+        respondents_text = "\n".join(respondents)
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+    
+    
+    
+    new_pattern_4 = re.compile(
+        r'([^\n\r]+?)\s*\.{4}PETITIONER\s*V/S\s*([^\n\r]+?)\s*\.{4}RESPONDENT', 
+        re.IGNORECASE | re.DOTALL
+    )
+
+    matches = new_pattern_4.findall(text)
+    if matches:
+        petitioners = []
+        respondents = []
+        for match in matches:
+            petitioners.append(match[0].strip())
+            respondents.append(match[1].strip())
+        
+        petitioners_text = "\n".join(petitioners)
+        respondents_text = "\n".join(respondents)
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+     
+    additional_new_pattern = re.compile(
+        r'\[.*?\]\s*(.*?)\s*\.\.\s*Petitioner\s*Vs\s*(.*?)\s*\.\.\s*Respondents',
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    matches = additional_new_pattern.findall(text)
+    
+    if matches:
+        petitioners_list = []
+        respondents_list = []
+        
+        for match in matches:
+            petitioner = match[0].strip()
+            respondents = match[1].strip().split('\n')
+            respondents = [resp.strip() for resp in respondents if resp.strip()]
+            
+            # Extract only the relevant petitioner information and remove leading spaces
+            petitioner_parts = petitioner.split('\n')
+            relevant_petitioner = '\n'.join(part.strip() for part in petitioner_parts if '.' not in part[:3])
+            
+            petitioners_list.append(relevant_petitioner)
+            respondents_list.append("\n".join(respondents))
+        
+        petitioners_text = "\n\n".join(petitioners_list)
+        respondents_text = "\n\n".join(respondents_list)
+        
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+    
+
+  
+    new_pattern_5 = re.compile(
+        r'([^\n\r]+?)\s*\.{3,}\s*PETITIONER\s*(?:\n*AND\n*|\s+AND\s+)([^\n\r]+?)\s*\.{3,}\s*RESPONDENT',
+        re.IGNORECASE | re.DOTALL
+    )
+
+    matches = new_pattern_5.findall(text)
+    if matches:
+        petitioners = []
+        respondents = []
+        for match in matches:
+            petitioners.append(match[0].strip())
+            respondents.append(match[1].strip())
+        
+        petitioners_text = "\n".join(petitioners)
+        respondents_text = "\n".join(respondents)
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+        
+    pattern_11_1 = re.compile(
+        r'\[.*?\]\s*(.*?)\s*\.{3,}\s*Applicant\s*.*?Versus\s*([\s\S]*?)\s*\.{3,}\s*Respondents',
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    matches = pattern_11_1.findall(text)
     if matches:
         parties = []
-        for petitioner, respondent in matches:
-            parties.append(f"Petitioner: {petitioner.strip()}\nRespondent: {respondent.strip()}")
+        for match in matches:
+            # Remove leading/trailing spaces and align to left
+            applicant_lines = [line.strip() for line in match[0].split('\n') if line.strip()]
+            applicant = '\n'.join(applicant_lines)
+            
+            respondents = match[1].strip().split('\n')
+            respondents = [resp.strip() for resp in respondents if resp.strip()]
+            respondents_text = "\n".join(respondents)
+            parties.append(f"Applicant:\n{applicant}\n\nRespondents:\n{respondents_text}")
         return "\n\n".join(parties)
     
-    # Try matching the dots pattern
-    matches = pattern_dots.findall(text)
+    
+    pattern_11 = re.compile(
+        r'([^\n\r]+)\s*\.{3,}\s*Applicant\s*.*?VERSUS\s*([\s\S]*?)\s*\.{3,}\s*Respondents',
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    matches = pattern_11.findall(text)
     if matches:
         parties = []
-        for petitioner, respondent in matches:
-            parties.append(f"Petitioner: {petitioner.strip()}\nRespondent: {respondent.strip()}")
+        for match in matches:
+            petitioner = match[0].strip()
+            respondents = match[1].strip().split('\n')
+            respondents = [resp.strip() for resp in respondents if resp.strip()]
+            respondents_text = "\n".join(respondents)
+            parties.append(f"Petitioner:{petitioner}\n\nRespondents:{respondents_text}")
         return "\n\n".join(parties)
     
-    # Try matching the provided specific format
-    matches = pattern_provided.findall(text)
+    
+    
+    pattern_12 = re.compile(
+        r'([^\n\r]+)\s*\.{1,}\s*Appellant\s*.*?Versus\s*([^\n\r]+)\s*\.{1,}\s*Respondent',
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    matches = pattern_12.findall(text)
     if matches:
         parties = []
-        for petitioner, respondent in matches:
-            parties.append(f"Petitioner: {petitioner.strip()}\nRespondent: {respondent.strip()}")
+        for match in matches:
+            petitioner = match[0].strip()
+            respondent = match[1].strip()
+            parties.append(f"Petitioner: {petitioner}\n\nRespondent: {respondent}")
         return "\n\n".join(parties)
     
-    # Try matching the appellant pattern
+    pattern_17 = re.compile(
+        r'([^\n\r]+?)\s*\.{4,}\s*PETITIONER\s*Versus\s*([\s\S]+?)\s*\.{4,}\s*RESPONDENTS',
+        re.IGNORECASE
+    )
+    
+    matches = pattern_17.findall(text)
+    if matches:
+        parties = []
+        for match in matches:
+            petitioner = match[0].strip()
+            respondent = match[1].strip()
+            parties.append(f"Petitioner: {petitioner}\n\nRespondent: {respondent}")
+        return "\n\n".join(parties)
+    
+    pattern_19 = re.compile(
+    r'([A-Z][A-Z\s&]+\.)\s*…\s*PETITIONERS\s*VERSUS\s*([A-Z][A-Z\s&]+\.)\s*…\s*RESPONDENTS',
+    re.IGNORECASE | re.DOTALL
+    )
+    
+    # Find all matches in the text
+    matches = pattern_19.findall(text)
+    if matches:
+        petitioners = []
+        respondents_list = []
+        
+        for match in matches:
+            petitioner = match[0].strip()
+            respondents = match[1].strip().split('\n')
+            respondents = [resp.strip() for resp in respondents if resp.strip()]
+            respondents_text = "\n".join(respondents)
+            
+            petitioners.append(petitioner)
+            respondents_list.append(respondents_text)
+        
+        petitioners_text = "\n".join(petitioners)
+        respondents_text = "\n\n".join(respondents_list)
+        return f"Petitioner:\n{petitioner}\n\nRespondents:\n{respondents_text}"
+    
+    pattern_20 = re.compile(
+    r'([A-Z\s’&.]+)\s*…+\s*APPELLANTS\s*VERSUS\s*([A-Z\s’&.]+)\s*\.+\s*RESPONDENTS',
+    re.IGNORECASE | re.DOTALL
+    )
+    
+    # Find all matches in the text
+    matches = pattern_20.findall(text)
+    if matches:
+        appellants_list = []
+        respondents_list = []
+        
+        for match in matches:
+            appellants = match[0].strip()
+            respondents = match[1].strip()
+            
+            appellants_list.append(appellants)
+            respondents_list.append(respondents)
+        
+        appellants_text = "\n".join(appellants_list)
+        respondents_text = "\n".join(respondents_list)
+        return f"Appellants:\n{appellants_text}\n\nRespondents:\n{respondents}"
+    
+    pattern_21 = re.compile(
+    r'([A-Z][A-Za-z\s&.]+\.)\s*…\s*Appellants\s*Versus\s*([A-Z][A-Za-z\s&.]+\.)\s*…\s*Respondents',
+    re.IGNORECASE
+    )
+    
+    # Find all matches in the text
+    matches = pattern_21.findall(text)
+    if matches:
+        appellants_list = []
+        respondents_list = []
+        
+        for match in matches:
+            appellants = match[0].strip()
+            respondents = match[1].strip()
+            
+            appellants_list.append(appellants)
+            respondents_list.append(respondents)
+        
+        appellants_text = "\n".join(appellants_list)
+        respondents_text = "\n".join(respondents_list)
+        return f"Appellants:\n{appellants}\n\nRespondents:\n{respondents}"
+    
+    pattern_appellant = re.compile(
+        r'([^\n\r]+?)\s*…\s*APPELLANT\(S\)\s*.*?Versus:\s*([^\n\r]+?)\s*…\s*RESPONDENT\(S\)', 
+        re.IGNORECASE | re.DOTALL
+    )
+    
     matches = pattern_appellant.findall(text)
+    
     if matches:
         parties = []
         for petitioner, respondent in matches:
             parties.append(f"Petitioner: {petitioner.strip()}\nRespondent: {respondent.strip()}")
         return "\n\n".join(parties)
     
-    # Try matching the specific parties pattern
-    matches = pattern_specific_parties.findall(text)
+    pattern_23 = re.compile(
+    r'(?:\d+\s+of\s+\d+\s+)?(?P<petitioner>[\w\s]+?)\s*…\s*Petitioner\s+versus\s+(?P<respondent>[\w\s]+?\s+and\s+others)\s*…\s*Respondents',
+    re.IGNORECASE
+    )
+    
+    matches = pattern_23.findall(text)
+    
+    if matches:
+        seen = set()
+        results = []
+        for match in matches:
+            petitioner, respondent = match
+            # Remove all numbers and 'of' from petitioner name
+            petitioner = re.sub(r'\d+\s+of\s+\d+\s+', '', petitioner).strip()
+            # Remove any leading/trailing whitespace and newlines
+            petitioner = ' '.join(petitioner.split())
+            if petitioner not in seen:
+                seen.add(petitioner)
+                results.append(f"Petitioner: {petitioner}\nRespondent: {respondent.strip()}")
+        
+        return "\n\n".join(results)
+
+    pattern_10_1 = re.compile(
+        r'((?:\d+\.[^\n\r]+\s*)+)\s*\.{3,}\s*.*?Vs\s*([\s\S]*?)\s*\.{3,}\s*R',
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    matches = pattern_10_1.findall(text)
+    
+    if matches:
+        petitioners_list = []
+        respondents_list = []
+        
+        for match in matches:
+            petitioner = match[0].strip().split('\n')
+            petitioner = [pet.strip() for pet in petitioner if pet.strip()]
+            petitioner_text = "\n".join(petitioner)
+            
+            respondents = match[1].strip().split('\n')
+            respondents = [resp.strip() for resp in respondents if resp.strip()]
+            respondents_text = "\n".join(respondents)
+            
+            petitioners_list.append(petitioner_text)
+            respondents_list.append(respondents_text)
+        
+        petitioners_text = "\n".join(petitioners_list)
+        respondents_text = "\n\n".join(respondents_list)
+        
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+    
+    pattern_10 = re.compile(
+    r'([^\n\r]+)\s*\.{3,}\s*.*?Vs\s*([\s\S]*?)\s*\.{3,}\s*R',
+    re.IGNORECASE | re.DOTALL
+    )
+    
+    # Find all matches in the text
+    matches = pattern_10.findall(text)
+    if matches:
+        petitioners_list = []
+        respondents_list = []
+        
+        for match in matches:
+            petitioner = match[0].strip()
+            respondents = match[1].strip().split('\n')
+            respondents = [resp.strip() for resp in respondents if resp.strip()]
+            respondents_text = "\n".join(respondents)
+            
+            petitioners_list.append(petitioner)
+            respondents_list.append(respondents_text)
+        
+        petitioners_text = "\n".join(petitioners_list)
+        respondents_text = "\n\n".join(respondents_list)
+        
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+        
+    pattern_13 = re.compile(
+    r'([^\n\r]+)\s*\.{2,}\s*Petitione\s*.*?vs\s*([\s\S]*?)\s*\.{2,}\s*Respondents',
+    re.IGNORECASE | re.DOTALL
+    )
+    
+    # Find all matches in the text
+    matches = pattern_13.findall(text)
+    if matches:
+        petitioners_list = []
+        respondents_list = []
+        
+        for match in matches:
+            petitioner = match[0].strip()
+            respondents = match[1].strip().split('\n')
+            respondents = [resp.strip() for resp in respondents if resp.strip()]
+            respondents_text = "\n".join(respondents)
+            
+            petitioners_list.append(petitioner)
+            respondents_list.append(respondents_text)
+        
+        petitioners_text = "\n".join(petitioners_list)
+        respondents_text = "\n\n".join(respondents_list)
+        
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+    
+    pattern_14 = re.compile(
+        r'(?:.*?WP\(C\)\sNo\.\s\d+\sof\s\d+\s+Date\sof\sDecision:.*?\n)(.*?)\s*:::\s*Petitioner\s*-\s*Vs\s*-\s*([\s\S]+?)\s*:::\s*Respondents',
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    # Find all matches in the text
+    matches = pattern_14.findall(text)
+    if matches:
+        petitioners_list = []
+        respondents_list = []
+        
+        for match in matches:
+            # Split petitioner info into lines, strip each line, and rejoin
+            petitioner_lines = match[0].strip().split('\n')
+            petitioner = '\n'.join(line.strip() for line in petitioner_lines if line.strip())
+            
+            respondents = match[1].strip().split('\n')
+            respondents = [resp.strip() for resp in respondents if resp.strip()]
+            respondents_text = "\n".join(respondents)
+            
+            petitioners_list.append(petitioner)
+            respondents_list.append(respondents_text)
+        
+        petitioners_text = "\n\n".join(petitioners_list)
+        respondents_text = "\n\n".join(respondents_list)
+        
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+    
+    pattern_15_3 = re.compile(
+        r'((?:\d+\.\s?[^\n\r]+\s*)+)\s*\.{3,}\s*PETITIONER(?:\(S\))?\s*(?:versus)?\s*([\s\S]+?)\s*\.{3,}\s*RESPONDENT(?:\(S\))?\S*',
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    matches = pattern_15_3.findall(text)
+    
+    if matches:
+        petitioners_list = []
+        respondents_list = []
+        
+        for match in matches:
+            petitioner = match[0].strip()
+            petitioners = petitioner.split('\n')
+            petitioners = [pet.strip() for pet in petitioners if pet.strip()]
+            petitioners_text = "\n".join(petitioners)
+
+            respondents = match[1].strip().split('\n')
+            respondents = [resp.strip() for resp in respondents if resp.strip()]
+            respondents_text = "\n".join(respondents)
+            
+            petitioners_list.append(petitioners_text)
+            respondents_list.append(respondents_text)
+        
+        petitioners_text = "\n".join(petitioners_list)
+        respondents_text = "\n\n".join(respondents_list)
+        
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+    
+    
+    pattern_15_2 = re.compile(
+        r'Between:\s*(.*?)\s*\.{3,}\s*APPELLANT(?:\(S\))?\s*(?:AND)?\s*(.*?)\s*\.{3,}\s*RESPONDENT(?:\(S\))?',
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    matches = pattern_15_2.findall(text)
+    
+    if matches:
+        appellants_list = []
+        respondents_list = []
+        
+        for match in matches:
+            appellants = match[0].strip().split('\n')
+            respondents = match[1].strip().split('\n')
+            
+            appellants = [app.strip() for app in appellants if app.strip()]
+            respondents = [resp.strip() for resp in respondents if resp.strip()]
+            
+            appellants_text = "\n".join(appellants)
+            respondents_text = "\n".join(respondents)
+            
+            appellants_list.append(appellants_text)
+            respondents_list.append(respondents_text)
+        
+        appellants_text = "\n".join(appellants_list)
+        respondents_text = "\n".join(respondents_list)
+        
+        return f"Appellants:\n{appellants_text}\n\nRespondents:\n{respondents_text}"
+    
+    
+    pattern_15_1 = re.compile(
+        r'\b(?:Between:|Petitioner:|Petitioners:)\s*(.*?)\s*\.\.\.\s*Petitioner\s*(?:Versus|AND|Vs\.|v\.)\s*(.*?)\s*\.\.\.\s*(?:Respondents?|Respondent)',
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    # Find all matches in the text
+    matches = pattern_15_1.findall(text)
+    if matches:
+        petitioners_list = []
+        respondents_list = []
+        
+        for match in matches:
+            petitioner = match[0].strip()
+            respondents = match[1].strip().split('\n')
+            respondents = [resp.strip() for resp in respondents if resp.strip()]
+            respondents_text = "\n".join(respondents)
+            
+            petitioners_list.append(petitioner)
+            respondents_list.append(respondents_text)
+        
+        petitioners_text = "\n".join(petitioners_list)
+        respondents_text = "\n\n".join(respondents_list)
+        
+        # Ensure no unnecessary leading or trailing whitespace in the final output
+        petitioners_text = "\n".join([line.strip() for line in petitioners_text.split('\n')])
+        respondents_text = "\n".join([line.strip() for line in respondents_text.split('\n')])
+        
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+    
+    pattern_15_4 = re.compile(
+        r'Between:\s*(.*?)\s*\.{3,}\s*PETITIONER(?:\(S\))?\s*(?:AND)?\s*([\s\S]+?)\s*\.{3,}\s*RESPONDENT(?:\(S\))?\S*',
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    matches = pattern_15_4.findall(text)
+    
     if matches:
         parties = []
-        for petitioner, respondent in matches:
-            parties.append(f"Petitioner: {petitioner.strip()}\nRespondent: {respondent.strip()}")
+        for match in matches:
+            petitioner = match[0].strip()
+            respondents = match[1].strip().split('\n')
+            respondents = [resp.strip() for resp in respondents if resp.strip()]
+            respondents_text = "\n".join(respondents)
+            parties.append(f"Petitioner:{petitioner}\n\nRespondents:{respondents_text}")
         return "\n\n".join(parties)
+   
     
-    new_pattern_8 = re.compile(
-          r'([A-Z\s\-\/]+)\s+VS\s+([A-Z\s\-\/]+)', re.IGNORECASE
-    ) 
-    match = new_pattern_8.search(text)
+    pattern_15 = re.compile(
+        r'([^\n\r]+)\s*\.{3,}\s*PETITIONER(?:\(S\))?\s*(?:AND)?\s*([\s\S]+?)\s*\.{3,}\s*RESPONDENT(?:\(S\))?\S*',
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    matches = pattern_15.findall(text)
+    
+    if matches:
+        petitioners_list = []
+        respondents_list = []
+        
+        for match in matches:
+            petitioner = match[0].strip()
+            respondents = match[1].strip().split('\n')
+            respondents = [resp.strip() for resp in respondents if resp.strip()]
+            respondents_text = "\n".join(respondents)
+            
+            petitioners_list.append(petitioner)
+            respondents_list.append(respondents_text)
+        
+        petitioners_text = "\n".join(petitioners_list)
+        respondents_text = "\n\n".join(respondents_list)
+        
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+    
+    pattern_16 = re.compile(
+    r'([^\n\r]+)\s*\.\.\s*Petitioner\s*Vs\s*([\s\S]+?)\s*\.\.\s*Responden',
+    re.IGNORECASE | re.DOTALL
+    )
+    
+    # Find all matches in the text
+    matches = pattern_16.findall(text)
+    if matches:
+        petitioners_list = []
+        respondents_list = []
+        
+        for match in matches:
+            petitioner = match[0].strip()
+            respondents = match[1].strip().split('\n')
+            respondents = [resp.strip() for resp in respondents if resp.strip()]
+            respondents_text = "\n".join(respondents)
+            
+            petitioners_list.append(petitioner)
+            respondents_list.append(respondents_text)
+        
+        petitioners_text = "\n".join(petitioners_list)
+        respondents_text = "\n\n".join(respondents_list)
+        
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+    
+    pattern_18 = re.compile(
+    r'((?:\d+\.[A-Z][.\w\s]+\s*)+)\.\.Pet.*?vs\s+((?:\d+\..*?\.\s*)+)\.\.\s*Respo',
+    re.IGNORECASE | re.DOTALL
+    )
+    
+    # Find all matches in the text
+    matches = pattern_18.findall(text)
+    if matches:
+        petitioners_list = []
+        respondents_list = []
+        
+        for match in matches:
+            petitioner = match[0].strip()
+            respondents = match[1].strip().split('\n')
+            respondents = [resp.strip() for resp in respondents if resp.strip()]
+            respondents_text = "\n".join(respondents)
+            
+            petitioners_list.append(petitioner)
+            respondents_list.append(respondents_text)
+        
+        petitioners_text = "\n".join(petitioners_list)
+        respondents_text = "\n\n".join(respondents_list)
+        
+        return f"Petitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+    
+    pattern_22 = re.compile(
+        r'BETWEEN:-\s*(?P<petitioner>.*?)\s*\(BY.*?\)\s*AND\s*(?P<respondents>(?:\d+\..*?)+)(?:\(BY|$)',
+        re.DOTALL | re.IGNORECASE
+    )
+    
+    match = pattern_22.search(text)
     if match:
-        petitioner = match.group(1).strip()
-        respondents_text = match.group(2).strip()
-        respondents = respondents_text.split('AND')
-        respondents = [resp.strip() for resp in respondents]
-        return {
-            'petitioner': petitioner,
-            'respondents': respondents
-        }
+        petitioner = match.group('petitioner').strip()
+        respondents_text = match.group('respondents').strip()
+        
+        # Format the petitioner
+        petitioner_formatted = "\n".join(line.strip() for line in petitioner.split('\n'))
+        
+        # Format the respondents
+        respondents = re.findall(r'\d+\.(.*?)(?=\d+\.|\Z)', respondents_text, re.DOTALL)
+        respondents_formatted = "\n".join(f"{i+1}. {' '.join(line.strip() for line in resp.split())}" 
+                                          for i, resp in enumerate(respondents))
+        
+        return f"Petitioner:\n{petitioner_formatted}\n\nRespondents:\n{respondents_formatted}"
     
+    specific_pattern_1 = re.compile(
+        r'([^\n\r]+?)\s*\.\.\.\s*Pe\s*versus\s*([\s\S]+?)\s*\.\.\.\s*Re', 
+        re.IGNORECASE | re.DOTALL
+    )
+
+    matches = specific_pattern_1.findall(text)
+    if matches:
+        petitioners = []
+        respondents = []
+        for match in matches:
+            petitioners.append(match[0].strip())
+            respondents_text = match[1].strip()
+            respondents_list = respondents_text.split('\n')
+            respondents.extend([resp.strip() for resp in respondents_list if resp.strip()])
+        
+        petitioners_text = "\n".join(petitioners)
+        respondents_text = "\n".join(respondents)
+        return f"Parties:\nPetitioners:\n{petitioners_text}\n\nRespondents:\n{respondents_text}"
+    
+#2    
+    pattern_ellipsis = re.compile(
+        r'([^\n\r]+?)\s*…\s*Petitioner\s*.*?Versus\s*([^\n\r]+?)\s*…\s*Respondents', 
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    matches = pattern_ellipsis.findall(text)
+    
+    if matches:
+        parties = []
+        for petitioner, respondent in matches:
+            parties.append(f"Petitioner: {petitioner.strip()}\nRespondent: {respondent.strip()}")
+        return "\n\n".join(parties)
+    
+    pattern_dots = re.compile(
+        r'([^\n\r]+?)\s*\.{4}\s*Petitioner\s*\(s\)\s*.*?Versus\s*([^\n\r]+?)\s*\.{4}\s*Respondents', 
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    matches = pattern_dots.findall(text)
+    
+    if matches:
+        parties = []
+        for petitioner, respondent in matches:
+            parties.append(f"Petitioner: {petitioner.strip()}\n\nRespondent: {respondent.strip()}")
+        return "\n\n".join(parties)
+    
+    
+    
+    pattern_dashes = re.compile(
+        r'([^\n\r]+?)\s*-\s*Petitioner\s*.*?Versus\s*([^\n\r]+?)\s*-\s*Respondents', 
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    matches = pattern_dashes.findall(text)
+    
+    if matches:
+        parties = []
+        for petitioner, respondent in matches:
+            parties.append(f"Petitioner: {petitioner.strip()}\nRespondent: {respondent.strip()}")
+        return "\n\n".join(parties)
+    
+    
+    pattern_provided = re.compile(
+        r'([^\n\r]+?)\s*…\s*.*?Versus:\s*([^\n\r]+?)\s*…\s*.*?RESPONDENT\(S\)', 
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    matches = pattern_provided.findall(text)
+    
+    if matches:
+        parties = []
+        for petitioner, respondent in matches:
+            parties.append(f"Petitioner: {petitioner.strip()}\nRespondent: {respondent.strip()}")
+        return "\n\n".join(parties)
+    
+    
+    pattern_specific_parties = re.compile(r'([^\n\r]+?)\s*Versus\s*([^\n\r]+)', re.IGNORECASE | re.DOTALL)
+    
+    matches = pattern_specific_parties.findall(text)
+    
+    if matches:
+        parties = []
+        for petitioner, respondent in matches:
+            parties.append(f"Petitioner: {petitioner.strip()}\nRespondent: {respondent.strip()}")
+        return "\n\n".join(parties)
+           
+    pattern_specific_parties_1 = re.compile(r'([^\n\r]+?)\s*VS\s*([^\n\r]+)', re.IGNORECASE | re.DOTALL)
+    matches = pattern_specific_parties_1.findall(text) 
+    if matches:
+        parties = []
+        for petitioner, respondent in matches:
+            petitioner = petitioner.strip()
+            respondent = respondent.strip()
+            # Check if both petitioner and respondent are in uppercase
+            if petitioner.isupper() and respondent.isupper():
+                parties.append(f"Petitioner: {petitioner}\nRespondent: {respondent}")
+        
+        # Join and return the result
+        return "\n\n".join(parties)
+         
     return "Parties not found."
 
 def extract_date(text):
     # Define regex pattern to match dates in various formats
-    date_pattern = r'(?:\d{1,2}(?:st|nd|rd|th)?(?:\s)?(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s\d{4})|(?:\d{1,2}(?:\/|-)\d{1,2}(?:\/|-)\d{2,4})'
+    date_pattern = (
+        r'(\b(?:[12][0-9]|3[01]|0?[1-9])(st|nd|rd|th)?\s(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)(?:,)?\s\d{4}\b)|'
+        r'(\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s(?:[12][0-9]|3[01]),?\s\d{4}\b)|'
+        r'(\b(?:0?[1-9]|[12][0-9]|3[01])[-/](?:0?[1-9]|1[0-2])[-/](?:\d{2}|\d{4})\b)|'
+        r'(\b(?:0?[1-9]|[12][0-9]|3[01])\.(?:0?[1-9]|1[0-2])\.\d{4}\b)'
+    )
     
     # Find all matches of the date pattern in the text
     matches = re.findall(date_pattern, text)
     
-    return matches
+    # Flatten the list of tuples and remove empty strings
+    dates = [date for match in matches for date in match if date]
+    
+    # Remove duplicates by converting to set and back to list
+    unique_dates = list(set(dates))
+    
+    return unique_dates
 
 def extract_case_title(text):
-    # Pattern to match case titles with varying formats, including ellipsis and flexible date formats
-    pattern = r'((?:(?:State Of|M/S)\s)?[A-Z][a-zA-Z\s.,&()\'\-/]+(?:\s+\.{3}\s+[A-Z][a-zA-Z\s.,&()\'\-/]+)?(?:\s+vs\.?\s+(?:(?:State Of|M/S)\s)?[A-Z][a-zA-Z\s.,&()\'\-/]+(?:\s+\.{3}\s+[A-Z][a-zA-Z\s.,&()\'\-/]+)?)?)\s+on\s+(\d{1,2}\s+[A-Za-z]+,?\s+\d{4})'
+    # Updated pattern to match case titles with varying formats, including dots, colons, and additional parts
+    pattern = r'((?:In\sRe:\s)?[A-Z][a-zA-Z\s.,&()\'’\-/0-9@]+(?:\s+Through\s+[A-Za-z\s.,&()\'’\-/0-9]+)?(?:\s+\.\.\.\s+)?(?:vs\.?\s+[A-Z][a-zA-Z\s.,&()\'’\-/0-9@]+(?:\s*[:,]\s*[a-zA-Z\s.,&()\'’]*)*)?)\s+on\s+(\d{1,2}\s+[A-Za-z]+,?\s+\d{4})'
     
-    # Alternative pattern for cases without a date
-    pattern_alt = r'((?:(?:State Of|M/S)\s)?[A-Z][a-zA-Z\s.,&()\'\-/]+(?:\s+\.{3}\s+[A-Z][a-zA-Z\s.,&()\'\-/]+)?(?:\s+vs\.?\s+(?:(?:State Of|M/S)\s)?[A-Z][a-zA-Z\s.,&()\'\-/]+(?:\s+\.{3}\s+[A-Z][a-zA-Z\s.,&()\'\-/]+)?)?)'
+    # Alternative pattern to match titles like "Aum Capital Market Pvt. Ltd vs Union Of India"
+    pattern_alt = r'([A-Z][a-zA-Z\s.,&()\'’\-0-9@]+(?:,\s*[A-Z]\d+)?(?:\s+vs\.?\s+[A-Z][a-zA-Z\s.,&()\'’\-0-9@]+))'
     
-    # First try matching the pattern with date
+    # First try matching the original pattern
     match = re.search(pattern, text, re.IGNORECASE)
+    
+    # If no match, try the alternative pattern
+    if not match:
+        match = re.search(pattern_alt, text, re.IGNORECASE)
     
     if match:
         title = match.group(1).strip()
-        date = match.group(2).strip()
-        return f"{title} on {date}"
-    
-    # If no match, try the alternative pattern
-    match = re.search(pattern_alt, text, re.IGNORECASE)
-    
-    if match:
-        return match.group(1).strip()
-    
-    return "Title and date not found"
+        if len(match.groups()) > 1 and re.search(r'\s+on\s+', text, re.IGNORECASE):
+            date = match.group(2).strip()
+            return f"{title} on {date}"
+        else:
+            # Check for unwanted "Author" or other text in the title
+            if "Author" in title:
+                title = title.split("Author")[0].strip()
+            return title
+    else:
+        return "Title and date not found"
 
 def extract_court_name(text):
-    # Define a more comprehensive pattern for court names, including the new format
+    # Define a comprehensive pattern for court names, including spaces between letters
     comprehensive_pattern = (
-        r'(?:Supreme Court|High Court of Judicature at \w+|High Court of Judicature for \w+|'
+        r'(?:S\s*U\s*P\s*R\s*E\s*M\s*E\s*C\s*O\s*U\s*R\s*T\s*'
+        r'O\s*F\s*I\s*N\s*D\s*I\s*A|'
+        r'Supreme Court|High Court of Judicature at \w+|High Court of Judicature for \w+|'
         r'High Court of \w+|District Court|Bench of \w+ High Court|High Court at \w+)'
     )
     
@@ -527,8 +1160,8 @@ def extract_court_name(text):
     if match:
         return match.group(0).strip()
     else:
-        # Define a fallback pattern for court names
-        fallback_pattern = r'(?:Supreme|High|District) Court'
+        # Define a fallback pattern for court names, including spaces between letters
+        fallback_pattern = r'(?:S\s*U\s*P\s*R\s*E\s*M\s*E\s*C\s*O\s*U\s*R\s*T|Supreme|High|District) Court'
         
         # Search for the fallback pattern in the text
         match = re.search(fallback_pattern, text, re.IGNORECASE)
@@ -544,8 +1177,8 @@ def extract_articles_sections(text):
     # Comprehensive pattern for articles
     article_pattern = re.compile(r'\b(?:Article|Art\.?)\s*(\d+[A-Za-z]*(?:\(\d+\))?(?:\([a-z]\))?(?:\s*(?:,|and)\s*\d+[A-Za-z]*(?:\(\d+\))?(?:\([a-z]\))?)*)', re.IGNORECASE)
     
-    # Comprehensive pattern for sections
-    section_pattern = re.compile(r'\b(?:Section|Sec\.?)\s*(\d+[A-Za-z]*(?:\(\d+\))?(?:\([a-z]\))?(?:\s*(?:,|and|to)\s*\d+[A-Za-z]*(?:\(\d+\))?(?:\([a-z]\))?)*)', re.IGNORECASE)
+    # Comprehensive pattern for sections (including plural 'Sections')
+    section_pattern = re.compile(r'\b(?:Section|Sec\.?|Sections|Secs\.?)\s*(\d+[A-Za-z]*(?:\(\d+\))?(?:\([a-z]\))?(?:\s*(?:,|and|to)\s*\d+[A-Za-z]*(?:\(\d+\))?(?:\([a-z]\))?)*)', re.IGNORECASE)
     
     # Pattern for clauses
     clause_pattern = re.compile(r'\b(?:Clause|Cl\.?)\s*(\d+[A-Za-z]*(?:\(\d+\))?(?:\([a-z]\))?(?:\s*(?:,|and)\s*\d+[A-Za-z]*(?:\(\d+\))?(?:\([a-z]\))?)*)', re.IGNORECASE)
@@ -572,7 +1205,7 @@ def extract_articles_sections(text):
     if unique_references:
         return "\n".join(sorted(unique_references, key=lambda x: (x.split()[0].lower(), x.split()[1:])))
     else:
-        return "No articles, sections, clauses, or sub-sections found."  
+        return "No articles, sections, clauses, or sub-sections found." 
     
 def sanitize_text(text):
     # Remove unwanted symbols using regular expressions
