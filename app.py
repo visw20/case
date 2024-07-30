@@ -3,7 +3,7 @@ import streamlit as st
 import re
 import nltk
 import contractions
-#import spacy
+import spacy
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
@@ -20,18 +20,18 @@ import numpy as np
 
 warnings.simplefilter(action='ignore', category=UserWarning)
 
-#nltk.download('punkt')
-#nltk.download('wordnet')
-#nltk.download('stopwords')
-#nltk.download('averaged_perceptron_tagger')
-#nltk.download('maxent_ne_chunker')
-#nltk.download('words')
+nltk.download('punkt')
+nltk.download('wordnet')
+nltk.download('stopwords')
+nltk.download('averaged_perceptron_tagger')
+nltk.download('maxent_ne_chunker')
+nltk.download('words')
 
 # Load the English language model
-#nlp = spacy.load('en_core_web_sm')
+nlp = spacy.load('en_core_web_sm')
 
 # Set max_length to a value that accommodates your text length
-#nlp.max_length = 5000000  # Set max_length to a value that accommodates your text length
+nlp.max_length = 5000000  # Set max_length to a value that accommodates your text length
 
 # Load pre-trained Word2Vec model
 w2v_model = api.load('word2vec-google-news-300')
@@ -65,8 +65,14 @@ def preprocess_text(text):
     # Remove extra whitespaces
     text = re.sub(r'\s+', ' ', text)
     
-    # Tokenization 
-    tokens = word_tokenize(text)
+    # Tokenization and NER tagging using spaCy
+    doc = nlp(text)
+    tokens = []
+    for token in doc:
+        if token.ent_type_:
+            tokens.append(token.ent_type_)
+        else:
+            tokens.append(token.text)
     
     # Lemmatization
     lemmatizer = WordNetLemmatizer()
@@ -1207,7 +1213,24 @@ def sanitize_text(text):
     sanitized_text = re.sub(r'[^\x00-\x7F]+', '', text)
     return sanitized_text
 
+# Updated `resolve_coreferences` function
+def resolve_coreferences(text):
+    doc = nlp(text)
+    resolved_text = []
+    for token in doc:
+        if token.dep_ == 'pronoun':
+            antecedent = token.head.text
+            resolved_text.append(antecedent)
+        else:
+            resolved_text.append(token.text)
+    
+    return ' '.join(resolved_text)
 
+# Function to preprocess text with coreference resolution
+def preprocess_text_with_coref_resolution(text):
+    text = resolve_coreferences(text)
+    text = preprocess_text(text)
+    return text
 
 def read_pdf(file):
     pdf_document = fitz.open(stream=file.read(), filetype="pdf")
@@ -1265,5 +1288,8 @@ def main():
 if __name__ == "__main__":
     main()
     
+
+
+
 
 
