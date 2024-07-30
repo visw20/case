@@ -1,7 +1,6 @@
 streamlit
 nltk
 contractions
-spacy
 scikit-learn
 autocorrect
 emoji
